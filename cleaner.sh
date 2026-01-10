@@ -198,7 +198,7 @@ main() {
 
     echo ""
     success "System maintenance complete!"
-    echo -e "${BLUE}=========================================${NC}"
+    echo -e "${GREEN}=========================================${NC}"
 }
 
 # Run execution

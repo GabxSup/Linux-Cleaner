@@ -7,9 +7,9 @@ A simple, robust bash script to automate system updates and cleanup for various 
 - **Auto-Detect Distro**: Automatically identifies your Linux distribution.
 - **Multi-Package Manager Support**:
   - `apt` (Debian, Ubuntu, Kali, Mint, Pop!_OS)
-  - `dnf` (Fedora, RHEL, CentOS)
-  - `pacman` (Arch, Manjaro)
-  - `zypper` (OpenSUSE)
+  - `dnf` (Fedora, RHEL, CentOS, AlmaLinux, Rocky)
+  - `pacman` (Arch, Manjaro, EndeavourOS)
+  - `zypper` (OpenSUSE, SLES)
 - **Safe Cleaning**:
   - Removes unused dependencies (autoremove).
   - Clears package caches.
@@ -20,7 +20,7 @@ A simple, robust bash script to automate system updates and cleanup for various 
 
 1.  **Download** or clone this repository.
     ```bash
-    git clone https://github.com/your-username/linux-cleaner.git
+    git clone https://github.com/GabxSup/Linux-Cleaner
     cd linux-cleaner
     ```
 
