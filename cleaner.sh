@@ -142,6 +142,8 @@ print_banner() {
 EOF
     echo -e "${NC}"
     echo -e "${BLUE}   Universal Linux Cleaner & Updater     ${NC}"
+    echo -e "${YELLOW}   Version: 1.0.1                        ${NC}"
+    echo -e "${YELLOW}   Author: GabxSup - https://github.com/GabxSup ${NC}"
     echo -e "${BLUE}=========================================${NC}"
 }
 
