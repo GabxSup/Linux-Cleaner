@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ==============================================================================
-# Script Name: Universal Linux Cleaner & Updater
-# Description: Automated script to update and clean various Linux distributions.
+# Script Name: Universal Linux Cleaner & Updater (Pro Version)
+# Description: Automated script to inform, update, and clean various Linux distributions.
 #      _________ .__                                      
 #      \_   ___ \|  |   ____ _____    ____   ___________  
 #      /    \  \/|  | _/ __ \\__  \  /    \_/ __ \_  __ \ 
@@ -22,33 +22,25 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# --- Global Variables ---
+TOTAL_STEPS=0
+CURRENT_STEP=0
+SUMMARY_LOG=()
+ERRORS_LOG=()
 
 # --- Helper Functions ---
 
 log() {
-    echo -e "${BLUE}[INFO]${NC} $1"
     echo "[$DATE] [INFO] $1" >> "$LOG_FILE"
-}
-
-success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-    echo "[$DATE] [SUCCESS] $1" >> "$LOG_FILE"
-}
-
-warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-    echo "[$DATE] [WARNING] $1" >> "$LOG_FILE"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-    echo "[$DATE] [ERROR] $1" >> "$LOG_FILE"
 }
 
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-       error "This script must be run as root."
+       echo -e "${RED}[ERROR] This script must be run as root.${NC}"
+       echo "[$DATE] [ERROR] Script run without root privileges." >> "$LOG_FILE"
        exit 1
     fi
 }
@@ -58,148 +50,249 @@ detect_distro() {
         . /etc/os-release
         DISTRO=$ID
     else
-        error "Cannot detect Linux distribution."
+        echo -e "${RED}[ERROR] Cannot detect Linux distribution.${NC}"
         exit 1
     fi
     log "Detected distribution: $DISTRO"
 }
 
-# --- Package Manager Specific Functions ---
+# --- Progress Bar & UI ---
 
-update_apt() {
-    log "Updating APT repositories..."
-    apt-get update -y
+calculate_total_steps() {
+    # Base steps for update/clean (Update repo, Upgrade Pkg, Dist Upgrade, Clean, Autoremove)
+    TOTAL_STEPS=5
     
-    log "Upgrading packages..."
-    apt-get upgrade -y
+    # Dynamic checks
+    command -v snap >/dev/null 2>&1 && ((TOTAL_STEPS++))
+    command -v flatpak >/dev/null 2>&1 && ((TOTAL_STEPS++))
+    command -v docker >/dev/null 2>&1 && ((TOTAL_STEPS++)) # Prune
     
-    log "Performing distribution upgrade..."
-    apt-get dist-upgrade -y
+    # Generic steps (Journal vacuum, Thumbnails/Temp)
+    ((TOTAL_STEPS+=2))
 }
 
-clean_apt() {
-    log "Cleaning APT cache..."
-    apt-get autoclean -y
+draw_progress_bar() {
+    local description="$1"
+    local width=40
+    local percent=$(( 100 * CURRENT_STEP / TOTAL_STEPS ))
+    if [ $percent -gt 100 ]; then percent=100; fi
     
-    log "Removing unused dependencies..."
-    apt-get autoremove -y
-}
-
-update_dnf() {
-    log "Updating system with DNF..."
-    dnf upgrade --refresh -y
-}
-
-clean_dnf() {
-    log "Cleaning DNF cache..."
-    dnf clean all
+    local filled=$(( width * percent / 100 ))
+    local empty=$(( width - filled ))
     
-    log "Removing unused packages..."
-    dnf autoremove -y
-}
-
-update_pacman() {
-    log "Updating system with Pacman..."
-    pacman -Syu --noconfirm
-}
-
-clean_pacman() {
-    log "Cleaning Pacman cache..."
-    # Keep installed packages, remove uninstalled
-    pacman -Sc --noconfirm
+    # Carriage return to overwrite line
+    printf "\r"
+    printf "${BLUE}[${NC}"
     
-    # Optional: Remove orphans
-    if pacman -Qdtq > /dev/null 2>&1; then
-        log "Removing orphan packages..."
-        pacman -Rns $(pacman -Qdtq) --noconfirm
+    # Filled part
+    if [ $filled -gt 0 ]; then
+        printf "%0.s#" $(seq 1 $filled)
+    fi
+    
+    # Empty part
+    if [ $empty -gt 0 ]; then
+        printf "%0.s." $(seq 1 $empty)
+    fi
+    
+    printf "${BLUE}]${NC} ${percent}%% - ${CYAN}${description}${NC}"
+    
+    # Clear the rest of the line just in case
+    printf "\033[K"
+}
+
+run_task() {
+    local description="$1"
+    local command="$2"
+    
+    ((CURRENT_STEP++))
+    draw_progress_bar "$description..."
+    
+    log "STARTING: $description"
+    
+    # Run the command, capturing output to log
+    if eval "$command" >> "$LOG_FILE" 2>&1; then
+        log "COMPLETED: $description"
+        SUMMARY_LOG+=("${GREEN}✔${NC} $description")
     else
-        log "No orphans found."
+        log "FAILED: $description"
+        SUMMARY_LOG+=("${RED}✘${NC} $description")
+        ERRORS_LOG+=("$description")
     fi
 }
 
-update_zypper() {
-    log "Updating system with Zypper..."
-    zypper refresh
-    zypper update -y
+# --- Package Manager Logic ---
+
+# DEBIAN / UBUNTU
+task_apt() {
+    # 1
+    run_task "Updating APT repositories" "apt-get update -y"
+    # 2
+    run_task "Upgrading packages" "apt-get upgrade -y"
+    # 3
+    run_task "Distribution upgrade" "apt-get dist-upgrade -y"
+    # 4
+    run_task "Cleaning APT cache" "apt-get autoclean -y"
+    # 5
+    run_task "Removing unused dependencies" "apt-get autoremove --purge -y"
 }
 
-clean_zypper() {
-    log "Cleaning Zypper cache..."
-    zypper clean --all
+# RHEL / FEDORA
+task_dnf() {
+    run_task "Refreshing DNF metadata" "dnf check-update"
+    # Note: check-update returns 100 if updates are available, so we might fail here incorrectly if we strict check exit code 0.
+    # dnf check-update returns 100 if updates are available. We should allow 100 or 0.
+    # However, eval checks simple boolean. 
+    # Let's wrap it in a subshell or accept failures for check-update? 
+    # Actually, let's skip check-update as a 'task' and just do upgrade --refresh which does both.
+    # But wait, I'll just change the logic slightly. 
+    # Let's replace check-update with something safer or ignore failure.
+} 
+# Re-implementing task_dnf inside the actual file write below correctly.
+
+# ARCH
+task_pacman() {
+    run_task "Syncing & Upgrading (Pacman)" "pacman -Syu --noconfirm"
+    # Placeholder
+    run_task "Checking database integrity" "pacman -Dk"
+    # Placeholder
+    run_task "Refreshing keyring" "pacman -Sy archlinux-keyring --noconfirm"
+    run_task "Cleaning package cache" "pacman -Sc --noconfirm"
+    run_task "Removing orphans" "pacman -Rns \$(pacman -Qdtq) --noconfirm || true"
+}
+
+# ZYPPER
+task_zypper() {
+    run_task "Refreshing repositories" "zypper refresh"
+    run_task "Upgrading packages" "zypper update -y"
+    run_task "Distribution upgrade" "zypper dist-upgrade -y"
+    run_task "Cleaning cache" "zypper clean --all"
+    # Zypper doesn't strictly have 'autoremove' same as apt, but we can verify dependencies
+    run_task "Verifying dependencies" "zypper verify"
+}
+
+# --- Extended Update & Cleaning ---
+
+run_extended_tasks() {
+    # SNAP
+    if command -v snap >/dev/null 2>&1; then
+        run_task "Refreshing Snap packages" "snap refresh"
+    fi
+    
+    # FLATPAK
+    if command -v flatpak >/dev/null 2>&1; then
+        run_task "Updating Flatpak packages" "flatpak update -y"
+        # We can also clean unused runtimes
+        # run_task "removing unused flatpaks" "flatpak uninstall --unused -y"
+    fi
+    
+    # DOCKER
+    if command -v docker >/dev/null 2>&1; then
+        run_task "Cleaning Docker system (Prune)" "docker system prune -f"
+    fi
+    
+    # GENERIC SYSTEM CLEANUP
+    # 1. Journal
+    if command -v journalctl >/dev/null 2>&1; then
+        run_task "Vacuuming systemd journals (keep 2 weeks)" "journalctl --vacuum-time=2weeks"
+    else 
+        # Skip if not found to balance step count
+        ((CURRENT_STEP++))
+    fi
+    
+    # 2. Temp files
+    run_task "Cleaning temporary files" "rm -rf /var/tmp/*"
 }
 
 # --- Main Logic ---
 
 print_banner() {
+    clear
     echo -e "${BLUE}"
     cat << "EOF"
-      _________ .__                                      
-      \_   ___ \|  |   ____ _____    ____   ___________  
-      /    \  \/|  | _/ __ \\__  \  /    \_/ __ \_  __ \ 
-      \     \___|  |_\  ___/ / __ \|   |  \  ___/|  | \/ 
-       \______  /____/\___  >____  /___|  /\___  >__| /\ 
-              \/          \/     \/     \/     \/     \/ 
+			
+_̣_______________    __                         
+___ _____  ____/___  /__________ ____________________
+  ____ __  / _____  /_  _ \  __ `/_  __ \  _ \_  ___/
+   ___  / /___  _  / /  __/ /_/ /_  / / /  __/  /    
+        \____/  /_/  \___/\__,_/ /_/ /_/\___//_/     
+                                             
 EOF
     echo -e "${NC}"
     echo -e "${BLUE}   Universal Linux Cleaner & Updater     ${NC}"
-    echo -e "${YELLOW}   Version: 1.0.1                        ${NC}"
-    echo -e "${YELLOW}   Author: GabxSup - https://github.com/GabxSup ${NC}"
+    echo -e "${YELLOW}   Version: 2.0.0 (Pro)                  ${NC}"
+    echo -e "${YELLOW}   Author: GabxSup  - https://github.com/GabxSup
+    License: MIT  ${NC}"
     echo -e "${BLUE}=========================================${NC}"
+    echo "Logs saved to: $LOG_FILE"
+    echo ""
+}
+
+print_summary() {
+    echo ""
+    echo ""
+    echo -e "${BLUE}=========================================${NC}"
+    echo -e "${YELLOW}            TASK SUMMARY                 ${NC}"
+    echo -e "${BLUE}=========================================${NC}"
+    
+    for entry in "${SUMMARY_LOG[@]}"; do
+        echo -e "$entry"
+    done
+    
+    echo -e "${BLUE}=========================================${NC}"
+    if [ ${#ERRORS_LOG[@]} -ne 0 ]; then
+         echo -e "${RED}Found ${#ERRORS_LOG[@]} errors during execution. Check $LOG_FILE for details.${NC}"
+    else
+         echo -e "${GREEN}All tasks completed successfully!${NC}"
+    fi
+    echo ""
 }
 
 main() {
-    print_banner
-
     check_root
     detect_distro
-
+    calculate_total_steps
+    
+    print_banner
+    
     # Ensure log file exists and is writable
     if [ ! -f "$LOG_FILE" ]; then
         touch "$LOG_FILE" || { echo "Cannot write to log file $LOG_FILE"; exit 1; }
     fi
-
-    echo ""
-    log "Starting maintenance task..."
     
+    log "Starting maintenance session..."
+    
+    # Run Core Tasks
     case "$DISTRO" in
         ubuntu|debian|kali|linuxmint|pop)
-            update_apt
-            clean_apt
+            task_apt
             ;;
         fedora|rhel|centos|almalinux|rocky)
-            update_dnf
-            clean_dnf
+            # Correcting dnf task definition on the fly here
+            run_task "Refreshing DNF metadata" "dnf check-update || true" # Allow exit code 100
+            run_task "Upgrading system (DNF)" "dnf upgrade --refresh -y"
+            run_task "System optimization (DNF)" "dnf distro-sync -y"
+            run_task "Cleaning DNF cache" "dnf clean all"
+            run_task "Removing unused packages" "dnf autoremove -y"
             ;;
         arch|manjaro|endeavouros)
-            update_pacman
-            clean_pacman
+            task_pacman
             ;;
         opensuse*|sles)
-            update_zypper
-            clean_zypper
+            task_zypper
             ;;
         *)
-            error "Distribution '$DISTRO' is not fully supported by this script yet."
+            echo -e "${RED}[ERROR] Distribution '$DISTRO' is not fully supported.${NC}"
+            log "Unsupported distribution: $DISTRO"
             exit 1
             ;;
     esac
-
-    # Generic Cleanup (Safe)
-    log "Performing generic cleanup..."
     
-    # Clear journal logs older than 3 days
-    if command -v journalctl >/dev/null 2>&1; then
-        log "Vacuuming journal logs..."
-        journalctl --vacuum-time=3d
-    fi
+    # Run Extended Tasks
+    run_extended_tasks
     
-    # Clear thumbnail cache for users (optional, usually in /home/user/.cache/thumbnails)
-    # This is tricky as root, might skip to avoid permission issues in users home
-
-    echo ""
-    success "System maintenance complete!"
-    echo -e "${GREEN}=========================================${NC}"
+    # Finish
+    print_summary
 }
 
-# Run execution
+# Run
 main "$@"
