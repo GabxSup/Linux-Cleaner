@@ -30,8 +30,11 @@ TOTAL_STEPS=0
 CURRENT_STEP=0
 SUMMARY_LOG=()
 ERRORS_LOG=()
-UPDATES_LIST_FILE=$(mktemp)
 UPDATES_AVAILABLE=false
+
+# Auto-cleanup temp file on exit
+UPDATES_LIST_FILE=$(mktemp)
+trap "rm -f $UPDATES_LIST_FILE" EXIT
 
 # --- Helper Functions ---
 
@@ -107,6 +110,30 @@ detect_distro() {
         exit 1
     fi
     log "Detected distribution: $DISTRO"
+}
+
+task_deep_clean() {
+    # Safer wildcards
+    shopt -s nullglob
+    
+    run_task "Deep cleaning: Removing old config files" "dpkg -l | grep '^rc' | awk '{print \$2}' | xargs -r dpkg -P"
+    
+    # User caches and trash (Process all users in /home)
+    for user_home in /home/*; do
+        if [ -d "$user_home" ]; then
+            user_name=$(basename "$user_home")
+            log "Cleaning cache/trash for user: $user_name"
+            # Explicitly check if dirs exist to avoid errors in log or execution
+            if [ -d "$user_home/.cache/thumbnails" ]; then
+                 rm -rf "$user_home/.cache/thumbnails"/* 2>/dev/null
+            fi
+            if [ -d "$user_home/.local/share/Trash" ]; then
+                 rm -rf "$user_home/.local/share/Trash"/* 2>/dev/null
+            fi
+        fi
+    done
+    shopt -u nullglob
+    run_task "Deep cleaning: User Thumbnails & Trash" "true" 
 }
 
 # --- Progress Bar & UI ---
@@ -260,16 +287,18 @@ run_extended_tasks() {
     run_task "Cleaning temporary files" "rm -rf /var/tmp/*"
 
     # 3. Deep Clean
-    if [ -f /usr/bin/dpkg ]; then
+    if [ -f /usr/bin/dpkg ] || [ -f /bin/rpm ]; then
          task_deep_clean
     else
-         # Generic deep clean for non-debian (just users)
+         # Generic deep clean fallback
+         shopt -s nullglob
          for user_home in /home/*; do
             if [ -d "$user_home" ]; then
-                rm -rf "$user_home/.cache/thumbnails/*" 2>/dev/null
-                rm -rf "$user_home/.local/share/Trash/*" 2>/dev/null
+                [ -d "$user_home/.cache/thumbnails" ] && rm -rf "$user_home/.cache/thumbnails"/* 2>/dev/null
+                [ -d "$user_home/.local/share/Trash" ] && rm -rf "$user_home/.local/share/Trash"/* 2>/dev/null
             fi
         done
+        shopt -u nullglob
         run_task "Deep cleaning: User Thumbnails & Trash" "true"
     fi
 }
@@ -322,7 +351,7 @@ print_summary() {
         cat "$UPDATES_LIST_FILE"
         echo -e "${CYAN}-----------------------------------${NC}"
     fi
-    rm -f "$UPDATES_LIST_FILE"
+     # Cleanup handled by trap
     echo ""
 }
 
