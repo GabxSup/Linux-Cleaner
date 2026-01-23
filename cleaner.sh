@@ -30,11 +30,64 @@ TOTAL_STEPS=0
 CURRENT_STEP=0
 SUMMARY_LOG=()
 ERRORS_LOG=()
+UPDATES_LIST_FILE=$(mktemp)
+UPDATES_AVAILABLE=false
 
 # --- Helper Functions ---
 
 log() {
     echo "[$DATE] [INFO] $1" >> "$LOG_FILE"
+}
+
+capture_updates_apt() {
+    log "Checking for available updates..."
+    if apt list --upgradable 2>/dev/null | grep -v "Listing..." > "$UPDATES_LIST_FILE"; then
+        if [ -s "$UPDATES_LIST_FILE" ]; then
+            UPDATES_AVAILABLE=true
+        fi
+    fi
+}
+
+capture_updates_dnf() {
+    log "Checking for available updates..."
+    if dnf list upgrades -q > "$UPDATES_LIST_FILE" 2>/dev/null; then
+         if [ -s "$UPDATES_LIST_FILE" ]; then
+            UPDATES_AVAILABLE=true
+        fi
+    fi
+}
+
+capture_updates_pacman() {
+    log "Checking for available updates..."
+    if pacman -Qu > "$UPDATES_LIST_FILE" 2>/dev/null; then
+         if [ -s "$UPDATES_LIST_FILE" ]; then
+            UPDATES_AVAILABLE=true
+        fi
+    fi
+}
+
+capture_updates_zypper() {
+    log "Checking for available updates..."
+    if zypper list-updates > "$UPDATES_LIST_FILE" 2>/dev/null; then
+         if [ -s "$UPDATES_LIST_FILE" ]; then
+            UPDATES_AVAILABLE=true
+        fi
+    fi
+}
+
+task_deep_clean() {
+    run_task "Deep cleaning: Removing old config files" "dpkg -l | grep '^rc' | awk '{print \$2}' | xargs -r dpkg -P"
+    
+    # User caches and trash (Process all users in /home)
+    for user_home in /home/*; do
+        if [ -d "$user_home" ]; then
+            user_name=$(basename "$user_home")
+            log "Cleaning cache/trash for user: $user_name"
+            rm -rf "$user_home/.cache/thumbnails/*" 2>/dev/null
+            rm -rf "$user_home/.local/share/Trash/*" 2>/dev/null
+        fi
+    done
+    run_task "Deep cleaning: User Thumbnails & Trash" "true" # Dummy command as we did it manually above safely
 }
 
 check_root() {
@@ -125,6 +178,7 @@ run_task() {
 # DEBIAN / UBUNTU
 task_apt() {
     # 1
+    capture_updates_apt
     run_task "Updating APT repositories" "apt-get update -y"
     # 2
     run_task "Upgrading packages" "apt-get upgrade -y"
@@ -138,6 +192,7 @@ task_apt() {
 
 # RHEL / FEDORA
 task_dnf() {
+    capture_updates_dnf
     run_task "Refreshing DNF metadata" "dnf check-update"
     # Note: check-update returns 100 if updates are available, so we might fail here incorrectly if we strict check exit code 0.
     # dnf check-update returns 100 if updates are available. We should allow 100 or 0.
@@ -151,6 +206,7 @@ task_dnf() {
 
 # ARCH
 task_pacman() {
+    capture_updates_pacman
     run_task "Syncing & Upgrading (Pacman)" "pacman -Syu --noconfirm"
     # Placeholder
     run_task "Checking database integrity" "pacman -Dk"
@@ -162,6 +218,7 @@ task_pacman() {
 
 # ZYPPER
 task_zypper() {
+    capture_updates_zypper
     run_task "Refreshing repositories" "zypper refresh"
     run_task "Upgrading packages" "zypper update -y"
     run_task "Distribution upgrade" "zypper dist-upgrade -y"
@@ -201,6 +258,20 @@ run_extended_tasks() {
     
     # 2. Temp files
     run_task "Cleaning temporary files" "rm -rf /var/tmp/*"
+
+    # 3. Deep Clean
+    if [ -f /usr/bin/dpkg ]; then
+         task_deep_clean
+    else
+         # Generic deep clean for non-debian (just users)
+         for user_home in /home/*; do
+            if [ -d "$user_home" ]; then
+                rm -rf "$user_home/.cache/thumbnails/*" 2>/dev/null
+                rm -rf "$user_home/.local/share/Trash/*" 2>/dev/null
+            fi
+        done
+        run_task "Deep cleaning: User Thumbnails & Trash" "true"
+    fi
 }
 
 # --- Main Logic ---
@@ -211,7 +282,7 @@ print_banner() {
     cat << "EOF"
 			
 _̣_______________    __                         
-___ _____  ____/___  /__________ ____________________
+ __ _____  ____/___  /__________ ____________________
   ____ __  / _____  /_  _ \  __ `/_  __ \  _ \_  ___/
    ___  / /___  _  / /  __/ /_/ /_  / / /  __/  /    
         \____/  /_/  \___/\__,_/ /_/ /_/\___//_/     
@@ -244,6 +315,14 @@ print_summary() {
     else
          echo -e "${GREEN}All tasks completed successfully!${NC}"
     fi
+
+    if [ "$UPDATES_AVAILABLE" = true ]; then
+        echo ""
+        echo -e "${CYAN}--- Updated Packages (Snapshot) ---${NC}"
+        cat "$UPDATES_LIST_FILE"
+        echo -e "${CYAN}-----------------------------------${NC}"
+    fi
+    rm -f "$UPDATES_LIST_FILE"
     echo ""
 }
 
