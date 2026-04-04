@@ -78,21 +78,6 @@ capture_updates_zypper() {
     fi
 }
 
-task_deep_clean() {
-    run_task "Deep cleaning: Removing old config files" "dpkg -l | grep '^rc' | awk '{print \$2}' | xargs -r dpkg -P"
-    
-    # User caches and trash (Process all users in /home)
-    for user_home in /home/*; do
-        if [ -d "$user_home" ]; then
-            user_name=$(basename "$user_home")
-            log "Cleaning cache/trash for user: $user_name"
-            rm -rf "$user_home/.cache/thumbnails/*" 2>/dev/null
-            rm -rf "$user_home/.local/share/Trash/*" 2>/dev/null
-        fi
-    done
-    run_task "Deep cleaning: User Thumbnails & Trash" "true" # Dummy command as we did it manually above safely
-}
-
 check_root() {
     if [[ $EUID -ne 0 ]]; then
        echo -e "${RED}[ERROR] This script must be run as root.${NC}"
@@ -118,8 +103,8 @@ task_deep_clean() {
     
     run_task "Deep cleaning: Removing old config files" "dpkg -l | grep '^rc' | awk '{print \$2}' | xargs -r dpkg -P"
     
-    # User caches and trash (Process all users in /home)
-    for user_home in /home/*; do
+    # User caches and trash (Process all users in /home and root)
+    for user_home in /home/* /root; do
         if [ -d "$user_home" ]; then
             user_name=$(basename "$user_home")
             log "Cleaning cache/trash for user: $user_name"
@@ -145,10 +130,12 @@ calculate_total_steps() {
     # Dynamic checks
     command -v snap >/dev/null 2>&1 && ((TOTAL_STEPS++))
     command -v flatpak >/dev/null 2>&1 && ((TOTAL_STEPS++))
-    command -v docker >/dev/null 2>&1 && ((TOTAL_STEPS++)) # Prune
+    command -v docker >/dev/null 2>&1 && ((TOTAL_STEPS+=2)) # Prune system & builder
+    command -v npm >/dev/null 2>&1 && ((TOTAL_STEPS++))
+    command -v pip3 >/dev/null 2>&1 && ((TOTAL_STEPS++))
     
-    # Generic steps (Journal vacuum, Thumbnails/Temp)
-    ((TOTAL_STEPS+=2))
+    # Generic steps (Journal vacuum, Temp, old logs)
+    ((TOTAL_STEPS+=3))
 }
 
 draw_progress_bar() {
@@ -269,9 +256,26 @@ run_extended_tasks() {
         # run_task "removing unused flatpaks" "flatpak uninstall --unused -y"
     fi
     
-    # DOCKER
+    # DOCKER (Check if daemon is running)
     if command -v docker >/dev/null 2>&1; then
-        run_task "Cleaning Docker system (Prune)" "docker system prune -f"
+        if docker system info >/dev/null 2>&1; then
+            run_task "Cleaning Docker system & volumes" "docker system prune -a --volumes -f"
+            run_task "Cleaning Docker builder cache" "docker builder prune -a -f"
+        else
+            log "Docker is installed but daemon is not running. Skipping Docker prune."
+            # Skip the progress bar steps if we allocated them
+            ((CURRENT_STEP+=2))
+        fi
+    fi
+
+    # NODE.JS
+    if command -v npm >/dev/null 2>&1; then
+        run_task "Cleaning NPM cache" "npm cache clean --force"
+    fi
+
+    # PYTHON
+    if command -v pip3 >/dev/null 2>&1; then
+        run_task "Cleaning PIP cache" "pip3 cache purge"
     fi
     
     # GENERIC SYSTEM CLEANUP
@@ -286,13 +290,16 @@ run_extended_tasks() {
     # 2. Temp files
     run_task "Cleaning temporary files" "rm -rf /var/tmp/*"
 
-    # 3. Deep Clean
+    # 3. Old Logs
+    run_task "Cleaning old compressed logs" "find /var/log -type f -name '*.gz' -delete -o -name '*.1' -delete"
+
+    # 4. Deep Clean
     if [ -f /usr/bin/dpkg ] || [ -f /bin/rpm ]; then
          task_deep_clean
     else
          # Generic deep clean fallback
          shopt -s nullglob
-         for user_home in /home/*; do
+         for user_home in /home/* /root; do
             if [ -d "$user_home" ]; then
                 [ -d "$user_home/.cache/thumbnails" ] && rm -rf "$user_home/.cache/thumbnails"/* 2>/dev/null
                 [ -d "$user_home/.local/share/Trash" ] && rm -rf "$user_home/.local/share/Trash"/* 2>/dev/null
