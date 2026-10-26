@@ -4,7 +4,7 @@
 
 An advanced, automated bash script to keep your Linux system fresh, updated, and clean. Now featuring a **visual progress bar**, **detailed task summaries**, and extended support for modern container and package systems.
 
-## 🚀 New Features (v2.0)
+##  New Features (v2.0)
 
 - **Interactive UI**: A sleek progress bar `[####....] 40%` keeps you informed of the current operation.
 - **Task Summary**: Get a clear report at the end showing exactly which tasks succeeded ✔ and which failed ✘.
@@ -14,7 +14,7 @@ An advanced, automated bash script to keep your Linux system fresh, updated, and
   - **Systemd Journal**: Vacuums old logs to save disk space.
 - **Smart Detection**: Automatically detects your distro and installed tools (Docker, Snap, etc.) to tailor the cleaning process.
 
-## 📦 Supported Systems
+##  Supported Systems
 
 The script automatically detects and adapts to the following package managers:
 
@@ -41,17 +41,17 @@ The script automatically detects and adapts to the following package managers:
     sudo ./cleaner.sh
     ```
 
-## 📝 Logging
+## Logging
 
 All technical details and command outputs are logged to:
 `/var/log/system_cleaner.log`
 
 This keeps your terminal clean while preserving all data for troubleshooting.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This script performs system administration tasks (updates, upgrades, cache cleaning). While tested and intended to be safe, **always review scripts before running them with root privileges**. Use at your own risk.
 
-## 📜 License
+## License
 
 MIT License. See [LICENSE](LICENSE) for details.
