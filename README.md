@@ -4,19 +4,19 @@
 
 An advanced, automated bash script to keep your Linux system fresh, updated, clean, and secure. Features an interactive **progress bar**, **detailed task summaries**, extended package/container pruning, and a dedicated **Security Clean & Privacy Sweep** module.
 
-## 🚀 What's New in v2.1 (Pro)
+## What's New in v2.3 (Pro)
 
-- 🛡️ **Security Clean & Privacy Sweep**:
+- **Security Clean & Privacy Sweep**:
   - **Memory & Crash Dump Sanitization**: Vacuums coredumps (`coredumpctl`) and removes `/var/crash/*` to prevent plaintext secrets or memory artifacts from lingering.
   - **Stale Auth Sockets**: Cleans abandoned SSH and GPG agent sockets in `/tmp` and `/var/tmp` from severed sessions.
   - **Privacy Sweep**: Clears sensitive CLI history and artifact files (`.lesshst`, `.wget-hsts`, `.viminfo`, `.mysql_history`, and root shell history).
   - **Permission & Security Audit**: Detects unowned system files and strips world-writable permissions from critical configuration files in `/etc`.
   - **Security Patch Advisories**: Automatically scans and logs pending distribution-specific security advisories (APT, DNF, Zypper, Arch).
   - **Credential Flush**: Automatically flushes cached `sudo` timestamp tokens on completion.
-- 🎛️ **Execution Modes**: Run full maintenance or target specific jobs (`--all`, `--security`, `--clean-only`, `--update-only`).
+- **Execution Modes**: Run full maintenance or target specific jobs (`--all`, `--security`, `--clean-only`, `--update-only`).
 - ⚡ **Accurate Progress Engine**: Dynamic step calculation and polished terminal presentation.
 
-## ✨ Core Features
+## Core Features
 
 - **Interactive UI**: Real-time progress bar `[####....] 60%` keeps you informed during execution.
 - **Task Summary**: Clear post-run checklist showing which tasks succeeded ✔ and which failed ✘.
@@ -27,7 +27,7 @@ An advanced, automated bash script to keep your Linux system fresh, updated, cle
   - **Systemd Journals**: Vacuums old system journals to reclaim disk space.
 - **Smart Detection**: Detects your distribution and installed tools automatically.
 
-## 📦 Supported Systems
+## Supported Systems
 
 The script automatically detects and adapts to:
 
@@ -36,7 +36,7 @@ The script automatically detects and adapts to:
 - **Arch Linux / Manjaro / EndeavourOS** (`pacman`)
 - **OpenSUSE / SLES** (`zypper`)
 
-## 🛠 Usage
+## Usage
 
 1. **Clone the repository**:
    ```bash
@@ -75,7 +75,7 @@ The script automatically detects and adapts to:
 | `-v, --version` | Displays version information |
 | `-h, --help` | Displays help message and examples |
 
-## 📝 Logging
+## Logging
 
 All technical details and command outputs are logged to:
 ```
@@ -83,10 +83,10 @@ All technical details and command outputs are logged to:
 ```
 This keeps your terminal clean while preserving complete logs for audits and troubleshooting.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This script performs system administration and cleanup tasks with root privileges. While engineered with safe defaults, **always review scripts before running them on production environments**.
 
-## 📜 License
+## License
 
 MIT License. See [LICENSE](LICENSE) for details.
