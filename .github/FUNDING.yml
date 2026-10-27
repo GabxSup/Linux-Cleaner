@@ -1,0 +1,17 @@
+# GitHub Sponsors button configuration
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+github: [GabxSup]
+
+# Uncomment and fill any other platforms you use:
+# patreon: username
+# open_collective: username
+# ko_fi: username
+# tidelift: npm/package-name
+# community_bridge: project-name
+# liberapay: username
+# issuehunt: username
+# otechie: username
+# lfx_crowdfunding: project-name
+# custom: ['https://your-link.com']
+

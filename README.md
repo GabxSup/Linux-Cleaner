@@ -1,6 +1,6 @@
 # Universal Linux System Cleaner & Updater
 
-![Version](https://img.shields.io/badge/version-2.1.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github-sponsors)](https://github.com/sponsors/GabxSup)
 
 An advanced, automated bash script to keep your Linux system fresh, updated, clean, and secure. Features an interactive **progress bar**, **detailed task summaries**, extended package/container pruning, and a dedicated **Security Clean & Privacy Sweep** module.
 
