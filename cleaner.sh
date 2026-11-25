@@ -422,6 +422,7 @@ print_summary() {
 }
 
 show_help() {
+    local exit_status="${1:-0}"
     cat << EOF
 Universal Linux Cleaner & Updater (Pro Version)
 Usage: sudo ./cleaner.sh [OPTIONS]
@@ -440,7 +441,7 @@ Examples:
   sudo ./cleaner.sh --clean-only # Clean disk space without updating
 
 EOF
-    exit 0
+    exit "$exit_status"
 }
 
 # --- Main Entry Point ---
@@ -473,7 +474,7 @@ parse_arguments() {
                 ;;
             *)
                 echo -e "${RED}Unknown option: $1${NC}"
-                show_help
+                show_help 2
                 ;;
         esac
     done
