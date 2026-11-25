@@ -105,7 +105,7 @@ capture_updates_pacman() {
 capture_updates_zypper() {
     log "Checking for available Zypper updates..."
     if zypper list-updates > "$UPDATES_LIST_FILE" 2>/dev/null; then
-        if [ -s "$UPDATES_LIST_FILE" ]; then
+        if grep -Eq '^[[:space:]]*v[[:space:]]*\|' "$UPDATES_LIST_FILE"; then
             UPDATES_AVAILABLE=true
         fi
     fi
