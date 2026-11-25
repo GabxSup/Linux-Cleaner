@@ -182,7 +182,7 @@ calculate_total_steps() {
         ((TOTAL_STEPS+=2)) # Temp files & old logs
         
         # Deep clean
-        if [ -f /usr/bin/dpkg ] || [ -f /bin/rpm ]; then
+        if [ -f /usr/bin/dpkg ]; then
             ((TOTAL_STEPS+=2)) # Config files + User thumbnails/trash
         else
             ((TOTAL_STEPS++)) # User thumbnails/trash fallback
