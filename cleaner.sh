@@ -221,7 +221,7 @@ task_pacman() {
     run_task "Syncing & Upgrading (Pacman)" "pacman -Syu --noconfirm"
     run_task "Checking database integrity" "pacman -Dk"
     run_task "Cleaning package cache" "pacman -Sc --noconfirm"
-    run_task "Removing orphans" "pacman -Rns \$(pacman -Qdtq) --noconfirm 2>/dev/null || true"
+    run_task "Removing orphans" "orphans=\$(pacman -Qdtq) && { [ -z \"\$orphans\" ] || pacman -Rns \$orphans --noconfirm; }"
 }
 
 task_zypper() {
