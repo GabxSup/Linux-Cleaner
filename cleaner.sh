@@ -198,8 +198,8 @@ calculate_total_steps() {
 # --- Core Package Managers ---
 
 task_apt() {
-    capture_updates_apt
     run_task "Updating APT repositories" "apt-get update -y"
+    capture_updates_apt
     run_task "Upgrading packages" "apt-get upgrade -y"
     run_task "Distribution upgrade" "apt-get dist-upgrade -y"
     run_task "Cleaning APT cache" "apt-get autoclean -y"
